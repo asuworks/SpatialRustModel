@@ -1,12 +1,12 @@
 function harvest!(model::SpatialRustABM)
-    yprod = sum(map(c -> c.production, model.agents))
+    yprod = sum(map(c -> c.production, allagents(model)))
     model.current.prod += yprod
     cost = model.current.costs += model.mngpars.fixed_costs +
         yprod * (model.mngpars.other_costs * (1.0 -  (model.current.shadeacc / 365.0) * mean(model.shade_map)) + 0.012)
     model.current.shadeacc = 0.0
 
     model.current.fung_count = 0
-    map(a -> new_harvest_cycle!(a, model.mngpars.lesion_survive), model.agents)
+    for a in allagents(model); new_harvest_cycle!(a, model.mngpars.lesion_survive); end
     return nothing
 end
 
@@ -44,9 +44,9 @@ end
 
 function inspect!(model::SpatialRustABM)
     n_infected = 0
-    actv = filter(active, model.agents)
+    actv = filter(active, allagents(model))
     if model.mngpars.n_inspected < length(actv)
-        inspected = sample(model.rng, actv, model.mngpars.n_inspected, replace = false)
+        inspected = sample(abmrng(model), actv, model.mngpars.n_inspected, replace = false)
     else
         inspected = actv
     end
@@ -56,9 +56,9 @@ function inspect!(model::SpatialRustABM)
         # lesion area of 0.05 means a diameter of ~0.25 cm, which is taken as minimum so grower can see it
         nvis = sum(>(0.05), c.areas, init = 0.0)
         # area of 0.8 means a diameter of ~1 cm
-        if nvis > 0  && (0.8 < maximum(c.areas, init = 0.0) || rand(model.rng) < nvis / 5)
+        if nvis > 0  && (0.8 < maximum(c.areas, init = 0.0) || rand(abmrng(model)) < nvis / 5)
             n_infected += 1
-            spotted = unique!(sort!(sample(model.rng, 1:c.n_lesions, weights(visible.(c.areas)), rmles)))
+            spotted = unique!(sort!(sample(abmrng(model), 1:c.n_lesions, weights(visible.(c.areas)), rmles)))
             deleteat!(c.ages, spotted)
             deleteat!(c.areas, spotted)
             deleteat!(c.spores, spotted)

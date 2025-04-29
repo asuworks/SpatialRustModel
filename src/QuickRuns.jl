@@ -1,4 +1,4 @@
-export dummyrun_spatialrust, simplerun
+export dummyrun_spatialrust, simplerun, step_n!
 
 function dummyrun_spatialrust(steps::Int = 200, side::Int = 60, maxlesions::Int = 25; kwargs...)
     model = init_spatialrust(steps = steps, map_side = side, max_lesions = maxlesions; kwargs...)
@@ -12,12 +12,8 @@ function dummyrun_spatialrust(steps::Int = 200, side::Int = 60, maxlesions::Int 
 end
 
 function step_n!(model::SpatialRustABM, n::Int)
-    s = 0
-    while s < n
-        step_model!(model)
-        s += 1
-    end
-    return s
+    step!(model, dummystep, step_model!, n)
+    return n
 end
 
 function step_while!(model::SpatialRustABM, s::Int, n::Int)
@@ -42,7 +38,7 @@ end
 
 function runsimple!(model::SpatialRustABM, steps::Int)
     meanshade = mean(model.shade_map)
-    allcofs = model.agents
+    allcofs = allagents(model)
     ncofs = length(allcofs)
     sporepct = model.rustpars.spore_pct
 
@@ -63,29 +59,29 @@ function runsimple!(model::SpatialRustABM, steps::Int)
     while s < steps
         indshade = model.current.ind_shade
 
-        sumareas = Iterators.filter(>(0.0), map(r -> sum(r.areas), allcofs))
+        sumareas = Iterators.filter(>(0.0), (sum(a.areas) for a in allagents(model)))
         if isempty(sumareas)
             msuma = 0.0
             msumsp = 0.0
             mages = 0.0
         else
             msuma = mean(sumareas)
-            sumspores = map(r -> sum(r.spores), allcofs)
+            sumspores = (sum(a.spores) for a in allagents(model))
             msumsp = mean(sumspores)
-            mages = mean(map(a -> meanage(a.ages), allcofs))
+            mages = mean(meanage(a.ages) for a in allagents(model))
         end
 
         push!(df, [
             model.current.days,
-            mean(map(a -> a.veg, allcofs)),
-            mean(map(a -> a.storage, allcofs)),
-            mean(map(a -> a.production, allcofs)),
+            mean(a.production for a in allagents(model)),
+            mean(a.storage for a in allagents(model)),
+            mean(a.veg for a in allagents(model)),
             indshade,
             indshade * meanshade,
-            mean(map(a -> a.n_lesions, allcofs)),
+            mean(a.n_lesions for a in allagents(model)),
             msuma,
             msumsp,
-            mean(map(sporear, allcofs)) * sporepct,
+            mean(sporear(a) for a in allagents(model)) * sporepct,
             sum(map(active, allcofs)) / ncofs,
             copy(model.current.prod),
             sum(map(a -> a.rusted, allcofs)),
@@ -93,35 +89,35 @@ function runsimple!(model::SpatialRustABM, steps::Int)
             mean(a -> sum(a.n_lesions), allcofs),
             sum(a -> (a.n_lesions > 0), allcofs) / ncofs
         ])
-        step!(model, dummystep, step_model!, 1)
+        step!(model, 1)
         s += 1
     end
 
     indshade = model.current.ind_shade
     
-    sumareas = Iterators.filter(>(0.0), map(r -> sum(r.areas), allcofs))
+    sumareas = Iterators.filter(>(0.0), (sum(a.areas) for a in allagents(model)))
     if isempty(sumareas)
         msuma = 0.0
         msumsp = 0.0
         mages = 0.0
     else
         msuma = mean(sumareas)
-        sumspores = map(r -> sum(r.spores), allcofs)
+        sumspores = (sum(a.spores) for a in allagents(model))
         msumsp = mean(sumspores)
-        mages = mean(map(a -> meanage(a.ages), allcofs))
+        mages = mean(meanage(a.ages) for a in allagents(model))
     end
 
     push!(df, [
         model.current.days,
-        mean(map(a -> a.veg, allcofs)),
-        mean(map(a -> a.storage, allcofs)),
-        mean(map(a -> a.production, allcofs)),
+        mean(a.production for a in allagents(model)),
+        mean(a.storage for a in allagents(model)),
+        mean(a.veg for a in allagents(model)),
         indshade,
         indshade * meanshade,
-        mean(map(a -> a.n_lesions, allcofs)),
+        mean(a.n_lesions for a in allagents(model)),
         msuma,
         msumsp,
-        mean(map(sporear, allcofs)) * sporepct,
+        mean(sporear(a) for a in allagents(model)) * sporepct,
         sum(map(active, allcofs)) / ncofs,
         copy(model.current.prod),
         sum(map(a -> a.rusted, allcofs)),

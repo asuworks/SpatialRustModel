@@ -1,0 +1,57 @@
+services:
+  spatialrust-webapp: # Renamed service for clarity (optional)
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount results and visualizations if the web app still outputs files here (optional)
+      # Otherwise, remove these if plots are only generated for display in the browser
+      - ./results:/home/appuser/app/results
+      - ./visualizations:/home/appuser/app/visualizations
+      # Mount source code read-only for potential development (optional, remove for production image)
+      # Note: If you mount the source code, changes won't be reflected unless you rebuild the image
+      # because precompilation happens during the build. For Dash development, consider
+      # removing the precompile step in Dockerfile and relying on Revise (if added back).
+      # - .:/home/appuser/app:ro
+    ports:
+      - "8080:8080" # Dash app runs on port 8080 by default (as defined in app.jl and Dockerfile)
+    deploy: # Deploy section is usually for Swarm/Kubernetes, might not be needed for local 'docker compose up'
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        # GPU reservations are likely unnecessary unless your Plots backend or Agents model uses CUDA heavily
+        # reservations:
+        #   devices:
+        #     - driver: nvidia
+        #       count: all
+        #       capabilities: [gpu]
+    restart: unless-stopped
+    environment:
+      # Keep these standard Julia environment variables
+      - JULIA_DEPOT_PATH=/home/appuser/.julia
+      - JULIA_PROJECT=/home/appuser/app
+      - JULIA_NUM_THREADS=auto # Often better than hardcoding
+      - JULIA_REVISE=off # Keep off for production-like container
+      # - JULIA_PKG_PRECOMPILE_AUTO=0 # Generally not needed if precompiling in Dockerfile
+      # - JULIA_CUDA_USE_BINARYBUILDER=false # Only needed if using CUDA directly
+      # Add environment variables specific to Dash/Plots if necessary
+      # e.g., for GR backend:
+      # - GKSwstype=nul
+    healthcheck:
+      # Test if the web server port is accessible instead of just checking packages
+      # Using wget or curl (might need to install curl via apt-get in Dockerfile)
+      # test: ["CMD", "curl", "--fail", "http://localhost:8080"]
+      # Or a simpler check if curl isn't available (less reliable):
+      test: ["CMD-SHELL", "julia --project -e 'using Dash; try; r=run_server(dash(), \"0.0.0.0\", 8080, suppress_callback_exceptions=true, debug=false); close(r.server); exit(0); catch; exit(1); end' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5 # Increased retries as app startup might take time
+      start_period: 60s # Give the app more time to start initially
+
+# The external julia_depot volume is generally not needed when dependencies
+# are handled within the image build process as recommended.
+# Removing it simplifies the setup.
+# volumes:
+#  julia_depot:
+#    driver: local

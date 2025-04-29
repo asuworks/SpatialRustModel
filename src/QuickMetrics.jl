@@ -30,6 +30,6 @@ activeRust(c::Coffee) = c.n_lesions > 0
 
 emean(v) = isempty(v) ? 0.0 : mean(v)
 
-filter_mean_prop(model::SpatialRustABM, prop::Symbol) = emean(getproperty.(filter(active, model.agents), prop))
+filter_mean_prop(model::SpatialRustABM, prop::Symbol) = emean(getproperty.(filter(active, allagents(model)), prop))
 
 mean_prop(cofs::Vector{Coffee}, prop::Symbol) = emean(getproperty.(cofs, prop))

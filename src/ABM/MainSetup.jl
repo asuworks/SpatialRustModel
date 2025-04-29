@@ -1,7 +1,7 @@
 export Coffee, init_spatialrust, createweather, create_farm_map, step_n!
 
 # Coffee agent type
-@agent Coffee GridAgent{2} begin
+@agent struct Coffee(GridAgent{2})
     sunlight::Float64 # let through by shade trees
     veg::Float64
     storage::Float64
@@ -31,7 +31,7 @@ function coffee(id, pos, max_lesions::Int, rust_gr::Float64;
 end
 
 function init_spatialrust(;
-    seed::Int = 0,
+    seed::Integer = 0,
     start_days_at::Int = 0,
     steps::Int = 500,                       # simulation steps
     p_rusts::Float64 = 0.01,                # % of initial rusts (# of initial clusters, if > 1)

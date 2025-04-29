@@ -3,7 +3,17 @@
 function init_abm_obj(props::Props, rng::Xoshiro, ini_rusts::Float64)::SpatialRustABM
     space = GridSpaceSingle((props.rustpars.map_side, props.rustpars.map_side), periodic = false, metric = :chebyshev)
 
-    model = UnremovableABM(Coffee, space; properties = props, rng = rng)
+    model = StandardABM(Coffee, space;
+                        agent_step! = dummystep,  # Explicitly pass dummystep for agent_step!
+                        model_step! = step_model!,# Explicitly pass step_model! for model_step!
+                        properties = props,
+                        rng = rng,
+                        container = Vector,  # Specify the container type here
+                        scheduler = Schedulers.fastest # Explicitly add scheduler if needed, assuming fastest was the default for SingleContainerABM
+                        # agent_step! and model_step! are now passed here if they were defined globally
+                        # agent_step! = your_agent_step_function,
+                        # model_step! = your_model_step_function
+                        )
 
     add_trees!(model)
     pre_run365!(model, props.mngpars)
@@ -25,12 +35,12 @@ function add_trees!(model::SpatialRustABM)
     cof_pos = findall(x -> x == 1, farm_map)
     for pos in cof_pos
         sunlight = 1.0 - shade_map[pos] * ind_shade
-        add_agent_pos!(
-            coffee(nextid(model), Tuple(pos),
-                max_lesions, rand(model.rng, rustgr_dist), 
+        add_agent_own_pos!(
+            coffee(Agents.nextid(model), Tuple(pos),
+                max_lesions, rand(abmrng(model), rustgr_dist), 
                 sunlight = sunlight, storage = init_storage(sunlight)),
             model
-            # Tuple(pos), model, max_lesions, rand(model.rng, rustgr_dist);
+            # Tuple(pos), model, max_lesions, rand(abmrng(model), rustgr_dist);
             # sunlight = sunlight,
             # storage = init_storage(sunlight)
         )
@@ -41,7 +51,7 @@ end
 # Add initial rust agents
 
 function rusted_cluster(model::SpatialRustABM, r::Int, avail_cofs) # Returns a "cluster" of initially rusted coffees
-    main_c = sample(model.rng, collect(Iterators.filter( 
+    main_c = sample(abmrng(model), collect(Iterators.filter( 
         c -> all(minp .<= c.pos .<= maxp), avail_cofs
     )))
     cluster = nearby_agents(main_c, model, r)
@@ -52,7 +62,7 @@ end
 function init_rusts!(model::SpatialRustABM, ini_rusts::Float64) # inoculate coffee plants
     if ini_rusts < 1.0
         n_rusts = max(round(Int, ini_rusts * nagents(model)), 1)
-        rusted_cofs = sample(model.rng, model.agents, n_rusts, replace = false)
+        rusted_cofs = sample(abmrng(model), allagents(model), n_rusts, replace = false)
         # rusted_cofs = collect(model[i] for i in rusted_ids)
     elseif ini_rusts < 2.0
         r = 1
@@ -78,13 +88,13 @@ function init_rusts!(model::SpatialRustABM, ini_rusts::Float64) # inoculate coff
 
     for rusted in rusted_cofs
         deposited = 0.0
-        nl = n_lesions = 1 + rand(model.rng, nl_distr)
+        nl = n_lesions = 1 + rand(abmrng(model), nl_distr)
         ages = rusted.ages
         areas = rusted.areas
         spores = rusted.spores
 
         for _ in 1:nl
-            area = rand(model.rng) * 0.3
+            area = rand(abmrng(model)) * 0.3
             age = round(Int, area * 100.0)
             # if area < 0.05 then the lesion is just in the "deposited" state,
             # so no changes have to be made to any of its variables
@@ -163,7 +173,7 @@ function pre_run365!(model::SpatialRustABM, mngpars::MngPars)
         coffee_step!(model)
         s += 1
     end
-    map(harvest_day, model.agents)
+    map(harvest_day, allagents(model))
 
     while s < 365 + p1
         model.current.days += 1
@@ -192,7 +202,7 @@ function pre_run365!(model::SpatialRustABM, mngpars::MngPars)
         coffee_step!(model)
         s += 1
     end
-    map(harvest_day, model.agents)
+    map(harvest_day, allagents(model))
 
     model.current.days = 0
     model.current.costs = 0

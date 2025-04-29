@@ -1,0 +1,34 @@
+# Git files
+.git/
+.gitignore
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml # If you have one
+
+# GitHub Actions
+.github/
+
+# Documentation / Notes
+README.md
+LICENSE
+*.md
+
+# Local development/build artifacts
+Manifest.toml # Keep this in the repo, but ignore for COPY . if you copied it earlier specifically
+results/
+visualizations/
+*.png
+*.mp4
+*.csv
+*.jld2
+*.so
+*.dylib
+*.dll
+
+# Test files
+test/
+
+# Scripts not needed in the final runtime image
+scripts/

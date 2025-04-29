@@ -24,11 +24,11 @@ function pre_step!(model::SpatialRustABM)
     # spore outpour decay, then outpour can return spores to the farm if windy
     model.outpour .*= 0.9
     if model.current.wind
-        model.current.wind_h = rand(model.rng) * 360.0
+        model.current.wind_h = rand(abmrng(model)) * 360.0
     end
 
     # used in GA, in case the evolved strategy was too effective and all Rusts were eliminated:
-    # if t % 30 == 0 && sum(activeRust, model.agents) == 0 && sum(active, model.agents) > 400
+    # if t % 30 == 0 && sum(activeRust, allagents(model)) == 0 && sum(active, allagents(model)) > 400
     #     reintroduce_rusts!(model, 5)
     # end
     return nothing
@@ -54,7 +54,7 @@ function coffee_step!(model::SpatialRustABM)
         else
             growth = rep_growth!
         end
-        for cof in model.agents
+        for cof in allagents(model)
             if cof.exh_countdown == 0
                 sl = update_sunlight!(cof, model.shade_map, model.current.ind_shade)
                 growth(cof, pars, sl)
@@ -67,11 +67,11 @@ function coffee_step!(model::SpatialRustABM)
         end
     else
         commit_dist = Normal(pars.res_commit, 0.01)
-        for cof in model.agents
+        for cof in allagents(model)
             if cof.exh_countdown == 0
                 sl = update_sunlight!(cof, model.shade_map, model.current.ind_shade)
                 veg_growth!(cof, pars, sl)
-                cof.production = max(0.0, rand(model.rng, commit_dist) * cof.sunlight * cof.veg * cof.storage)
+                cof.production = max(0.0, rand(abmrng(model), commit_dist) * cof.sunlight * cof.veg * cof.storage)
             elseif cof.exh_countdown > 1
                 cof.exh_countdown -= 1
             else
@@ -129,7 +129,7 @@ end
 function rust_step_schedule(model::SpatialRustABM, f_inf::Float64, f_day::Int, rain_spo::Float64, germinate_f::Function, grow_f::Function,
     rain_dispersal::Function, wind_dispersal::Function)
     
-    rusts = Iterators.filter(r -> r.rusted, model.agents)
+    rusts = Iterators.filter(r -> r.rusted, allagents(model))
 
     for rust in rusts
         if any(rust.spores)
@@ -141,18 +141,18 @@ function rust_step_schedule(model::SpatialRustABM, f_inf::Float64, f_day::Int, r
         local_temp = model.current.temperature - (model.rustpars.temp_cooling * (1.0 - rust.sunlight))
 
         if rust.n_lesions > 0
-            grow_f(rust, model.rng, model.rustpars, local_temp, rain_spo, f_day)
+            grow_f(rust, abmrng(model), model.rustpars, local_temp, rain_spo, f_day)
         
             if losttrack(rust.areas) || !isfinite(rust.storage)
                 model.current.withinbounds = false
                 break
             end
 
-            germinate_f(rust, model.rng, model.rustpars, local_temp, f_inf)
+            germinate_f(rust, abmrng(model), model.rustpars, local_temp, f_inf)
 
             parasitize!(rust, model.rustpars, model.farm_map)
         else
-            germinate_f(rust, model.rng, model.rustpars, local_temp, f_inf)
+            germinate_f(rust, abmrng(model), model.rustpars, local_temp, f_inf)
         end
     end
 

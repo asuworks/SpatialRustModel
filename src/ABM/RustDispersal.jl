@@ -6,14 +6,14 @@ function disperse_rain!(model::SpatialRustABM, rust::Coffee, spores::Float64)
     pos = rust.pos
     d_mod = (4.0 - 4.0 * pars.diff_splash) * (rust.sunlight - 0.5)^2.0 + pars.diff_splash
     exp_dist = Exponential(pars.rain_dst)
-    splashed = rand(model.rng, Poisson(spores))
+    splashed = rand(abmrng(model), Poisson(spores))
     for _ in 1:splashed
-        distance = rand(model.rng, exp_dist) * d_mod
+        distance = rand(abmrng(model), exp_dist) * d_mod
         if distance < 1.0 #self-infected
             rust.newdeps += 1.0
         else
             # follow splash and return: Tuple > 0 -> Coffee pos, < 0 -> outpour direction (see setup for mappings), 0 -> nothing
-            fin_pos = splash(model.rng, pos, distance, rand(model.rng) * 360.0, map, pars)
+            fin_pos = splash(abmrng(model), pos, distance, rand(abmrng(model)) * 360.0, map, pars)
             if any(fin_pos .> 0) && 
                 (c = (@inbounds model[id_in_position(fin_pos,model)])).exh_countdown == 0
                 c.newdeps += 1.0
@@ -28,8 +28,8 @@ end
 function disperse_wind!(model::SpatialRustABM, rust::Coffee, spores::Float64)
     shading = @inbounds model.shade_map[rust.pos...]
     rustpars = model.rustpars
-    w_distance = rand(model.rng, Exponential(rustpars.wind_dst)) * (1 + rust.sunlight * rustpars.diff_wind)
-    lifted = rand(model.rng, Poisson(spores * (1.0 - 0.5 * shading)))
+    w_distance = rand(abmrng(model), Exponential(rustpars.wind_dst)) * (1 + rust.sunlight * rustpars.diff_wind)
+    lifted = rand(abmrng(model), Poisson(spores * (1.0 - 0.5 * shading)))
     if w_distance < 1.0
         for _ in 1:lifted
             rust.newdeps += 1.0
@@ -37,8 +37,8 @@ function disperse_wind!(model::SpatialRustABM, rust::Coffee, spores::Float64)
     else
         wind_h = model.current.wind_h - 15.0
         for _ in 1:lifted
-            fin_pos = gust(model.rng, rust.pos, w_distance,
-            (wind_h + (rand(model.rng) * 30.0)),
+            fin_pos = gust(abmrng(model), rust.pos, w_distance,
+            (wind_h + (rand(abmrng(model)) * 30.0)),
             model.farm_map, model.shade_map, rustpars)
             if any(fin_pos .> 0) && 
                 (c = (@inbounds model[id_in_position(fin_pos,model)])).exh_countdown == 0
@@ -168,7 +168,7 @@ function outside_spores!(model::SpatialRustABM)
         deposited = fill((0,0), tries)
         i = 1
         while i <= tries
-            deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+            deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
             model.rustpars, expdist, 1)
             i += 1
         end
@@ -181,7 +181,7 @@ function outside_spores!(model::SpatialRustABM)
         for (q, t) in zip(qs, tries)
             ts += t
             while i <= t
-                deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+                deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
                 model.rustpars, expdist, q)
                 i += 1
             end
@@ -191,7 +191,7 @@ function outside_spores!(model::SpatialRustABM)
         deposited = fill((0,0), tries)
         i = 1
         while i <= tries
-            deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+            deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
             model.rustpars, expdist, 6)
             i += 1
         end
@@ -204,7 +204,7 @@ function outside_spores!(model::SpatialRustABM)
         for (q, t) in zip(qs, tries)
             ts += t
             while i <= ts
-                deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+                deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
                 model.rustpars, expdist, q)
                 i += 1
             end
@@ -214,7 +214,7 @@ function outside_spores!(model::SpatialRustABM)
         deposited = fill((0,0), tries)
         i = 1
         while i <= tries
-            deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+            deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
             model.rustpars, expdist, 2)
             i += 1
         end
@@ -227,7 +227,7 @@ function outside_spores!(model::SpatialRustABM)
         for (q, t) in zip(qs, tries)
             ts += t
             while i <= ts
-                deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+                deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
                 model.rustpars, expdist, q)
                 i += 1
             end
@@ -237,7 +237,7 @@ function outside_spores!(model::SpatialRustABM)
         deposited = fill((0,0), tries)
         i = 1
         while i <= tries
-            deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+            deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
             model.rustpars, expdist, 3)
             i += 1
         end
@@ -250,7 +250,7 @@ function outside_spores!(model::SpatialRustABM)
         for (q, t) in zip(qs, tries)
             ts += t
             while i <= ts
-                deposited[i] = try_outside_disp!(model.rng, heading, model.farm_map, model.shade_map,
+                deposited[i] = try_outside_disp!(abmrng(model), heading, model.farm_map, model.shade_map,
                 model.rustpars, expdist, q)
                 i += 1
             end
@@ -309,20 +309,20 @@ function starting_pos(rng, side::Int, q::Int)
 end
 
 function reintroduce_rusts!(model::SpatialRustABM, n_rusts::Int)
-    activecofs = filter(active, model.agents)
+    activecofs = filter(active, allagents(model))
     # n_rusts = min(n_rusts, length(activecofs))
-    rusted_cofs = sample(model.rng, activecofs, n_rusts, replace = false)
+    rusted_cofs = sample(abmrng(model), activecofs, n_rusts, replace = false)
     nl_distr = Binomial(model.rustpars.max_lesions - 1, 0.05)
 
     for rusted in rusted_cofs
         deposited = 0.0
-        nl = n_lesions = 1 + rand(model.rng, nl_distr)
+        nl = n_lesions = 1 + rand(abmrng(model), nl_distr)
         ages = rusted.ages
         areas = rusted.areas
         spores = rusted.spores
 
         for _ in 1:nl
-            area = rand(model.rng) * 0.2
+            area = rand(abmrng(model)) * 0.2
             age = round(Int, area * 100.0)
             if 0.01 < area
                 push!(ages, age)
