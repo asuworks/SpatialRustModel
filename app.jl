@@ -195,13 +195,30 @@ callback!(
     
     triggered = ctx.triggered[1].prop_id
 
-    # Initialization Logic
+    # Inside the init-button callback in app.jl
     if triggered == "init-button.n_clicks"
         initial_model = init_spatialrust(
             seed = Int64(rand(UInt64) % typemax(Int64)),
-            steps = 500
+            steps = 500 # Or some other default/parameter
         )
-        metrics_df = DataFrame(step=Int[], rust_infection=Float64[], coffee_yield=Float64[], shade_coverage=Float64[])
+
+        # --- START: Calculate initial metrics ---
+        current_step = abmtime(initial_model) # Should be 0 after init
+        current_agents = collect(allagents(initial_model))
+        coffee_agents = filter(a -> typeof(a) == Coffee, current_agents)
+
+        rust_inf_init = isempty(coffee_agents) ? 0.0 : mean(a.rusted for a in coffee_agents)
+        coffee_yld_init = isempty(coffee_agents) ? 0.0 : sum(a.production for a in coffee_agents)
+        shade_cov_init = abmproperties(initial_model).current.ind_shade * mean(abmproperties(initial_model).shade_map)
+
+        # Create DataFrame WITH the initial row
+        metrics_df = DataFrame(
+            step=[current_step],
+            rust_infection=[rust_inf_init],
+            coffee_yield=[coffee_yld_init],
+            shade_coverage=[shade_cov_init]
+        )
+        # --- END: Calculate initial metrics ---
 
         io_model = IOBuffer()
         Serialization.serialize(io_model, initial_model)
@@ -211,15 +228,15 @@ callback!(
         Serialization.serialize(io_metrics, metrics_df)
         serialized_metrics = take!(io_metrics)
 
-        p_farm = plot_farm_state(initial_model, 0)
+        p_farm = plot_farm_state(initial_model, current_step) # Use current_step
         p_shade = plot_shade_distribution(initial_model)
-        p_metrics = plot_metrics_over_time(metrics_df)
-        p_rust = plot_rust_progression(metrics_df)
+        p_metrics = plot_metrics_over_time(metrics_df) # Now has data for step 0
+        p_rust = plot_rust_progression(metrics_df)     # Now has data for step 0
 
         return (
             Dict("model" => base64encode(serialized_model)),
             Dict("metrics" => base64encode(serialized_metrics)),
-            "Current Step: 0",
+            "Current Step: $current_step", # Use current_step
             plot_to_base64(p_farm),
             plot_to_base64(p_shade),
             plot_to_base64(p_metrics),
@@ -227,15 +244,41 @@ callback!(
         )
 
     # Stepping Logic
+    # Inside the step-button callback in app.jl
     elseif triggered == "step-button.n_clicks" && model_data !== nothing && metrics_data !== nothing
         serialized_model = base64decode(model_data["model"])
         model = Serialization.deserialize(IOBuffer(serialized_model))
-        
+
         serialized_metrics = base64decode(metrics_data["metrics"])
         metrics_df = Serialization.deserialize(IOBuffer(serialized_metrics))
 
+        final_step = -1 # Initialize
+
         try
-            step_n!(model, steps_to_run)
+            # --- START: Loop for individual steps ---
+            for _ in 1:steps_to_run
+                # Step the model by one day/tick
+                step!(model, 1) # Or step!(model, dummystep, step_model!, 1)
+
+                # Calculate metrics for THIS step
+                current_step_iter = abmtime(model)
+                current_agents_iter = collect(allagents(model))
+                coffee_agents_iter = filter(a -> typeof(a) == Coffee, current_agents_iter)
+
+                rust_inf_iter = isempty(coffee_agents_iter) ? 0.0 : mean(a.rusted for a in coffee_agents_iter)
+                coffee_yld_iter = isempty(coffee_agents_iter) ? 0.0 : sum(a.production for a in coffee_agents_iter)
+                shade_cov_iter = abmproperties(model).current.ind_shade * mean(abmproperties(model).shade_map)
+
+                # Push data for THIS step
+                push!(metrics_df, (
+                    step = current_step_iter,
+                    rust_infection = rust_inf_iter,
+                    coffee_yield = coffee_yld_iter,
+                    shade_coverage = shade_cov_iter
+                ))
+                final_step = current_step_iter # Keep track of the last step number
+            end
+            # --- END: Loop for individual steps ---
         catch e
             println("Error during step: ", e)
             return (
@@ -249,15 +292,7 @@ callback!(
             )
         end
 
-        current_step = abmtime(model)
-        current_agents = collect(allagents(model))
-        coffee_agents = filter(a -> typeof(a) == Coffee, current_agents)
-
-        rust_inf = isempty(coffee_agents) ? 0.0 : mean(a.rusted for a in coffee_agents)
-        coffee_yld = isempty(coffee_agents) ? 0.0 : sum(a.production for a in coffee_agents)
-        shade_cov = abmproperties(model).current.ind_shade # Get the dynamic shade intensity
-        
-        push!(metrics_df, (step = current_step, rust_infection = rust_inf, coffee_yield = coffee_yld, shade_coverage = shade_cov))
+         # Now metrics_df contains data for every step taken in this click
 
         io_model = IOBuffer()
         Serialization.serialize(io_model, model)
@@ -267,15 +302,16 @@ callback!(
         Serialization.serialize(io_metrics, metrics_df)
         updated_serialized_metrics = take!(io_metrics)
 
-        p_farm = plot_farm_state(model, current_step)
-        p_shade = plot_shade_distribution(model)
-        p_metrics = plot_metrics_over_time(metrics_df)
-        p_rust = plot_rust_progression(metrics_df)
+        # Plotting uses the fully populated metrics_df
+        p_farm = plot_farm_state(model, final_step) # Show state at the end
+        p_shade = plot_shade_distribution(model)   # Show state at the end
+        p_metrics = plot_metrics_over_time(metrics_df) # Shows all points
+        p_rust = plot_rust_progression(metrics_df)     # Shows all points
 
         return (
             Dict("model" => base64encode(updated_serialized_model)),
             Dict("metrics" => base64encode(updated_serialized_metrics)),
-            "Current Step: $current_step",
+            "Current Step: $final_step", # Display the final step number reached
             plot_to_base64(p_farm),
             plot_to_base64(p_shade),
             plot_to_base64(p_metrics),

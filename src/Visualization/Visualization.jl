@@ -34,11 +34,18 @@ end
 Plot the distribution of shade across the farm.
 """
 function plot_shade_distribution(model)
-    # Create a heatmap of shade distribution
-    heatmap(model.shade_map, 
-            title="Shade Distribution",
+    # Calculate the effective shade map by multiplying the base shade map
+    # with the current individual shade intensity.
+    effective_shade = model.shade_map .* model.current.ind_shade
+
+    # Create a heatmap of the effective shade distribution
+    heatmap(effective_shade,
+            title="Effective Shade Distribution (Intensity: $(round(model.current.ind_shade, digits=3)))",
             color=:viridis,
-            colorbar_title="Shade Level")
+            # Set consistent color limits for better comparison between steps
+            # Use the theoretical max shade from parameters if available
+            clims=(0, model.mngpars.max_shade),
+            colorbar_title="Effective Shade Level")
 end
 
 """
@@ -53,7 +60,7 @@ function plot_metrics_over_time(data::DataFrame)
     plot!(p[1], data.step, data.rust_infection, 
           title="Rust Infection Over Time",
           label="Rust Infection",
-          ylabel="Infection Rate")
+          ylabel="Infection Ratio")
           
     plot!(p[2], data.step, data.coffee_yield,
           title="Coffee Yield Over Time",
@@ -77,7 +84,7 @@ function plot_rust_progression(data::DataFrame)
     # Plot rust progression over time
     plot(data.step, data.rust_infection,
          title="Rust Disease Progression",
-         label="Infection Rate",
+         label="Infection Ratio",
          xlabel="Time Steps",
          ylabel="Proportion of Infected Plants")
 end
