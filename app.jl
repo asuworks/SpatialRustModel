@@ -255,7 +255,7 @@ callback!(
 
         rust_inf = isempty(coffee_agents) ? 0.0 : mean(a.rusted for a in coffee_agents)
         coffee_yld = isempty(coffee_agents) ? 0.0 : sum(a.production for a in coffee_agents)
-        shade_cov = mean(abmproperties(model).shade_map)
+        shade_cov = abmproperties(model).current.ind_shade # Get the dynamic shade intensity
         
         push!(metrics_df, (step = current_step, rust_infection = rust_inf, coffee_yield = coffee_yld, shade_coverage = shade_cov))
 
